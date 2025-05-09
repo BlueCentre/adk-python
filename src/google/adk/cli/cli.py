@@ -18,9 +18,11 @@ import os
 import sys
 from typing import Optional
 
-import click
+import rich_click as click
 from google.genai import types
 from pydantic import BaseModel
+from rich.console import Console
+from rich.markdown import Markdown
 
 from ..agents.llm_agent import LlmAgent
 from ..artifacts import BaseArtifactService
@@ -51,6 +53,8 @@ async def run_input_file(
       artifact_service=artifact_service,
       session_service=session_service,
   )
+  # Initialize Rich Console
+  console = Console()
   with open(input_path, 'r', encoding='utf-8') as f:
     input_file = InputFile.model_validate_json(f.read())
   input_file.state['_time'] = datetime.now()
@@ -58,15 +62,16 @@ async def run_input_file(
   session = await session_service.create_session(
       app_name=app_name, user_id=user_id, state=input_file.state
   )
+  console.print(f"[bold blue]Running from input file:[/bold blue] [blue]{input_path}[/blue]")
   for query in input_file.queries:
-    click.echo(f'[user]: {query}')
+    console.print(f'[blue][user][/blue]: {query}')
     content = types.Content(role='user', parts=[types.Part(text=query)])
     async for event in runner.run_async(
         user_id=session.user_id, session_id=session.id, new_message=content
     ):
       if event.content and event.content.parts:
         if text := ''.join(part.text or '' for part in event.content.parts):
-          click.echo(f'[{event.author}]: {text}')
+          console.print(f'[{event.author}]: {text}')
   return session
 
 
@@ -82,8 +87,10 @@ async def run_interactively(
       artifact_service=artifact_service,
       session_service=session_service,
   )
+  # Initialize Rich Console
+  console = Console()
   while True:
-    query = input('[user]: ')
+    query = console.input('👦🏻 [blue]user[/blue] > ')
     if not query or not query.strip():
       continue
     if query == 'exit':
@@ -128,6 +135,9 @@ async def run_cli(
   artifact_service = InMemoryArtifactService()
   session_service = InMemorySessionService()
 
+  # Initialize Rich Console
+  console = Console()
+
   agent_module_path = os.path.join(agent_parent_dir, agent_folder_name)
   agent_module = importlib.import_module(agent_folder_name)
   user_id = 'test_user'
@@ -150,15 +160,16 @@ async def run_cli(
       loaded_session = Session.model_validate_json(f.read())
 
     if loaded_session:
+      console.print(f"[bold blue]Loading session from[/bold blue] [blue]{saved_session_file}[/blue]")
       for event in loaded_session.events:
         await session_service.append_event(session, event)
         content = event.content
         if not content or not content.parts or not content.parts[0].text:
           continue
         if event.author == 'user':
-          click.echo(f'[user]: {content.parts[0].text}')
+          console.print(f'[blue][user][/blue]: {content.parts[0].text}')
         else:
-          click.echo(f'[{event.author}]: {content.parts[0].text}')
+          console.print(f'[{event.author}]: {content.parts[0].text}')
 
     await run_interactively(
         root_agent,
@@ -167,7 +178,7 @@ async def run_cli(
         session_service,
     )
   else:
-    click.echo(f'Running agent {root_agent.name}, type exit to exit.')
+    console.print(f'[yellow]Running agent [green]{root_agent.name}[/green], type exit to exit.[/yellow]')
     await run_interactively(
         root_agent,
         artifact_service,
@@ -188,4 +199,4 @@ async def run_cli(
     with open(session_path, 'w', encoding='utf-8') as f:
       f.write(session.model_dump_json(indent=2, exclude_none=True))
 
-    print('Session saved to', session_path)
+    console.print(f'Session saved to [bold]{session_path}[/bold]')

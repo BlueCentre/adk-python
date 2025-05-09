@@ -23,7 +23,7 @@ from typing import AsyncGenerator
 from typing import Coroutine
 from typing import Optional
 
-import click
+import rich_click as click
 from fastapi import FastAPI
 import uvicorn
 
