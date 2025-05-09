@@ -18,7 +18,7 @@ import shutil
 import subprocess
 from typing import Optional
 
-import click
+import rich_click as click
 from packaging.version import parse
 
 _DOCKERFILE_TEMPLATE = """
