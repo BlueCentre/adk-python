@@ -27,6 +27,7 @@ dependencies = [
   # go/keep-sorted start
   "authlib>=1.5.1",                          # For RestAPI Tool
   "click>=8.1.8",                            # For CLI tools
+  "rich-click>=1.8.8",                       # For CLI tools
   "fastapi>=0.115.0",                        # FastAPI framework
   "google-api-python-client>=2.157.0",       # Google API client discovery
   "google-cloud-aiplatform>=1.87.0",         # For VertexAI integrations, e.g. example store.

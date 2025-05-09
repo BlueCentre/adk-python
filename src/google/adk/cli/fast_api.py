@@ -30,7 +30,7 @@ from typing import Literal
 from typing import Optional
 from typing import Union
 
-import click
+import rich_click as click
 from fastapi import FastAPI
 from fastapi import HTTPException
 from fastapi import Query
