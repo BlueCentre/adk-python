@@ -90,7 +90,7 @@ async def run_interactively(
   # Initialize Rich Console
   console = Console()
   while True:
-    query = console.input('👦🏻 [blue]user[/blue] > ')
+    query = console.input('😎 [blue]user[/blue] > ')
     if not query or not query.strip():
       continue
     if query == 'exit':
