@@ -46,7 +46,7 @@ class ApplicationIntegrationToolset:
       project="test-project",
       location="us-central1"
       integration="test-integration",
-      trigger="api_trigger/test_trigger",
+      triggers=["api_trigger/test_trigger"],
       service_account_credentials={...},
   )
 
@@ -80,13 +80,13 @@ class ApplicationIntegrationToolset:
       project: str,
       location: str,
       integration: Optional[str] = None,
-      trigger: Optional[str] = None,
+      triggers: Optional[List[str]] = None,
       connection: Optional[str] = None,
       entity_operations: Optional[str] = None,
       actions: Optional[str] = None,
       # Optional parameter for the toolset. This is prepended to the generated
       # tool/python function name.
-      tool_name: Optional[str] = "",
+      tool_name_prefix: Optional[str] = "",
       # Optional parameter for the toolset. This is appended to the generated
       # tool/python function description.
       tool_instructions: Optional[str] = "",
@@ -95,14 +95,15 @@ class ApplicationIntegrationToolset:
   ):
     """Args:
 
+    Args:
         project: The GCP project ID.
         location: The GCP location.
         integration: The integration name.
-        trigger: The trigger name.
+        triggers: The list of trigger names in the integration.
         connection: The connection name.
         entity_operations: The entity operations supported by the connection.
         actions: The actions supported by the connection.
-        tool_name: The name of the tool.
+        tool_name_prefix: The name prefix of the generated tools.
         tool_instructions: The instructions for the tool.
         service_account_json: The service account configuration as a dictionary.
           Required if not using default service credential. Used for fetching
@@ -112,35 +113,37 @@ class ApplicationIntegrationToolset:
           expose.
 
     Raises:
-        ValueError: If neither integration and trigger nor connection and
-            (entity_operations or actions) is provided.
+        ValueError: If none of the following conditions are met:
+            - `integration` is provided.
+            - `connection` is provided and at least one of `entity_operations`
+              or `actions` is provided.
         Exception: If there is an error during the initialization of the
             integration or connection client.
     """
     self.project = project
     self.location = location
-    self.integration = integration
-    self.trigger = trigger
-    self.connection = connection
-    self.entity_operations = entity_operations
-    self.actions = actions
-    self.tool_name = tool_name
-    self.tool_instructions = tool_instructions
-    self.service_account_json = service_account_json
+    self._integration = integration
+    self._triggers = triggers
+    self._connection = connection
+    self._entity_operations = entity_operations
+    self._actions = actions
+    self._tool_name_prefix = tool_name_prefix
+    self._tool_instructions = tool_instructions
+    self._service_account_json = service_account_json
     self.tool_filter = tool_filter
 
     integration_client = IntegrationClient(
         project,
         location,
         integration,
-        trigger,
+        triggers,
         connection,
         entity_operations,
         actions,
         service_account_json,
     )
     connection_details = {}
-    if integration and trigger:
+    if integration:
       spec = integration_client.get_openapi_spec_for_integration()
     elif connection and (entity_operations or actions):
       connections_client = ConnectionsClient(
@@ -148,23 +151,23 @@ class ApplicationIntegrationToolset:
       )
       connection_details = connections_client.get_connection_details()
       spec = integration_client.get_openapi_spec_for_connection(
-          tool_name,
+          tool_name_prefix,
           tool_instructions,
       )
     else:
       raise ValueError(
-          "Either (integration and trigger) or (connection and"
+          "Invalid request, Either integration or (connection and"
           " (entity_operations or actions)) should be provided."
       )
-    self.openapi_toolset = None
-    self.tool = None
+    self._openapi_toolset = None
+    self._tool = None
     self._parse_spec_to_toolset(spec, connection_details)
 
   def _parse_spec_to_toolset(self, spec_dict, connection_details):
     """Parses the spec dict to OpenAPI toolset."""
-    if self.service_account_json:
+    if self._service_account_json:
       sa_credential = ServiceAccountCredential.model_validate_json(
-          self.service_account_json
+          self._service_account_json
       )
       service_account = ServiceAccount(
           service_account_credential=sa_credential,
@@ -183,8 +186,8 @@ class ApplicationIntegrationToolset:
       )
       auth_scheme = HTTPBearer(bearerFormat="JWT")
 
-    if self.integration and self.trigger:
-      self.openapi_toolset = OpenAPIToolset(
+    if self._integration:
+      self._openapi_toolset = OpenAPIToolset(
           spec_dict=spec_dict,
           auth_credential=auth_credential,
           auth_scheme=auth_scheme,
@@ -207,7 +210,7 @@ class ApplicationIntegrationToolset:
         rest_api_tool.configure_auth_scheme(auth_scheme)
       if auth_credential:
         rest_api_tool.configure_auth_credential(auth_credential)
-      self.tool = IntegrationConnectorTool(
+      self._tool = IntegrationConnectorTool(
           name=rest_api_tool.name,
           description=rest_api_tool.description,
           connection_name=connection_details["name"],
@@ -221,9 +224,11 @@ class ApplicationIntegrationToolset:
 
   @override
   async def get_tools(self) -> List[RestApiTool]:
-    return [self.tool] if self.tool else await self.openapi_toolset.get_tools()
+    return (
+        [self._tool] if self._tool else await self._openapi_toolset.get_tools()
+    )
 
   @override
   async def close(self) -> None:
-    if self.openapi_toolset:
-      await self.openapi_toolset.close()
+    if self._openapi_toolset:
+      await self._openapi_toolset.close()
