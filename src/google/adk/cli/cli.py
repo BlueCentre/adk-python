@@ -71,7 +71,7 @@ async def run_input_file(
     ):
       if event.content and event.content.parts:
         if text := ''.join(part.text or '' for part in event.content.parts):
-          console.print(f'[{event.author}]: {text}')
+          console.print(f'[green][{event.author}][/green]: {text}')
   return session
 
 
@@ -102,7 +102,8 @@ async def run_interactively(
     ):
       if event.content and event.content.parts:
         if text := ''.join(part.text or '' for part in event.content.parts):
-          click.echo(f'[{event.author}]: {text}')
+          markdown_text = Markdown(text)
+          console.print(f'🤖 [green]{event.author}[/green] > ', markdown_text)
   await runner.close()
 
 
